@@ -189,18 +189,16 @@ function Get-ConditionalAccessConfiguration {
             }
         }
 
-        #---------------------------------------------------------------------
-        # 6. Build policy objects
-        #---------------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # Build policy objects
+        # ------------------------------------------------------------------
+
         # Helper for safe nested property access (PS5‑compatible)
         function Get-SafeValue {
             param($Expression, $Default = $null)
             try { & $Expression } catch { $Default }
         }
-
-        # ------------------------------------------------------------------
-        # Build policy objects
-        # ------------------------------------------------------------------
+        
         Write-Verbose 'Building policy objects…'
         $policyObjects = $policies | ForEach-Object {
             $p = $_
