@@ -152,39 +152,34 @@ function Get-ConditionalAccessConfiguration {
                         $u = Get-MgUser -UserId $Id -ErrorAction SilentlyContinue
                         $userCache[$Id] = if ($u) { $u.UserPrincipalName } else { "UnknownUser($Id)" }
                     }
-                    return $userCache[$Id]
+                    return [PSCustomObject]@{ Id = $Id; DisplayName = $userCache[$Id] }
                 }
-
                 'Group' {
                     if (-not $groupCache.ContainsKey($Id)) {
                         $g = Get-MgGroup -GroupId $Id -ErrorAction SilentlyContinue
                         $groupCache[$Id] = if ($g) { $g.DisplayName } else { "UnknownGroup($Id)" }
                     }
-                    return $groupCache[$Id]
+                    return [PSCustomObject]@{ Id = $Id; DisplayName = $groupCache[$Id] }
                 }
-
                 'App' {
                     if (-not $appCache.ContainsKey($Id)) {
                         $sp = Get-MgServicePrincipal -Filter "appId eq '$Id'" -ErrorAction SilentlyContinue
                         $appCache[$Id] = if ($sp) { $sp.DisplayName } else { "UnknownApp($Id)" }
                     }
-                    return $appCache[$Id]
+                    return [PSCustomObject]@{ Id = $Id; DisplayName = $appCache[$Id] }
                 }
-
                 'Role' {
                     if (-not $roleCache.ContainsKey($Id)) {
                         $rt = Get-MgDirectoryRoleTemplate -Filter "id eq '$Id'" -ErrorAction SilentlyContinue
                         $roleCache[$Id] = if ($rt) { $rt.DisplayName } else { "UnknownRole($Id)" }
                     }
-                    return $roleCache[$Id]
+                    return [PSCustomObject]@{ Id = $Id; DisplayName = $roleCache[$Id] }
                 }
-
                 'Location' {
-                    return $nlCache[$Id]
+                    return [PSCustomObject]@{ Id = $Id; DisplayName = $nlCache[$Id] }
                 }
-
                 'TermsOfUse' {
-                    return $touCache[$Id] -or "UnknownToU($Id)"
+                    return [PSCustomObject]@{ Id = $Id; DisplayName = $touCache[$Id] -or "UnknownToU($Id)" }
                 }
             }
         }
