@@ -227,19 +227,19 @@ function Get-ConditionalAccessConfiguration {
                 ExcludeLocations        = $p.Conditions.Locations.ExcludeLocations | ForEach-Object { Resolve-Entity $_ 'Location' }
 
                 # ----- Risk / platform / device -----------------------------------------------
-                UserRiskLevels          = @($p.Conditions.UserRiskLevels)
-                SignInRiskLevels        = @($p.Conditions.SignInRiskLevels)
-                InsiderRiskLevels       = @($p.Conditions.Users.InsiderRiskLevels)
-                ClientAppTypes          = @($p.Conditions.ClientAppTypes)
-                IncludePlatforms        = @($p.Conditions.Platforms.IncludePlatforms)
-                ExcludePlatforms        = @($p.Conditions.Platforms.ExcludePlatforms)
+                UserRiskLevels          = $p.Conditions.UserRiskLevels
+                SignInRiskLevels        = $p.Conditions.SignInRiskLevels
+                InsiderRiskLevels       = $p.Conditions.Users.InsiderRiskLevels
+                ClientAppTypes          = $p.Conditions.ClientAppTypes
+                IncludePlatforms        = $p.Conditions.Platforms.IncludePlatforms
+                ExcludePlatforms        = $p.Conditions.Platforms.ExcludePlatforms
 
                 DeviceFilterMode        = Get-SafeValue { $p.Conditions.Devices.DeviceFilter.Mode }
                 DeviceFilterRule        = Get-SafeValue { $p.Conditions.Devices.DeviceFilter.Rule }
 
                 # ----- Grant controls ----------------------------------------------------------
-                GrantControls           = @($p.GrantControls.BuiltInControls)
-                CustomAuthFactors       = @($p.GrantControls.CustomAuthenticationFactors)
+                GrantControls           = $p.GrantControls.BuiltInControls
+                CustomAuthFactors       = $p.GrantControls.CustomAuthenticationFactors
                 TermsOfUse              = $p.GrantControls.TermsOfUse | ForEach-Object { Resolve-Entity $_ 'TermsOfUse' }
                 Operator                = $p.GrantControls.Operator
                 AuthenticationStrength  = if ($p.GrantControls.AuthenticationStrength) {
@@ -274,8 +274,8 @@ function Get-ConditionalAccessConfiguration {
                 Id                                = $_.Id
                 DisplayName                       = $_.DisplayName
                 IsTrusted                         = if ($_.AdditionalProperties.isTrusted) { $true } else { $false }
-                IpRanges                          = @($_.AdditionalProperties.ipRanges.cidrAddress)
-                Countries                         = @($_.AdditionalProperties.countriesAndRegions)
+                IpRanges                          = $_.AdditionalProperties.ipRanges.cidrAddress
+                Countries                         = $_.AdditionalProperties.countriesAndRegions
                 IncludeUnknownCountriesAndRegions = if ($_.AdditionalProperties.includeUnknownCountriesAndRegions) { $true } else { $false }
                 CountryLookupMethod               = if ($_.AdditionalProperties.countryLookupMethod) { $_.AdditionalProperties.countryLookupMethod } else { $null }
             }
