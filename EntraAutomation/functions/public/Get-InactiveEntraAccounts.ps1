@@ -82,12 +82,16 @@ function Get-InactiveEntraAccounts {
     )
 
     try {
-        # Import required Graph modules
+        #---------------------------------------------------------------------
+        # 1. Import required modules
+        #---------------------------------------------------------------------
         Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
         Import-Module Microsoft.Graph.Users -ErrorAction Stop
         Import-Module Microsoft.Graph.Identity.SignIns -ErrorAction Stop
 
-        # Connect to Graph if needed
+        # -------------------------------------------------------
+        # 2. Connect to Graph if not using an existing session
+        # -------------------------------------------------------
         if (-not $UseExistingGraphSession) {
             Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
             switch ($PSCmdlet.ParameterSetName) {
@@ -101,7 +105,9 @@ function Get-InactiveEntraAccounts {
             }
         }
 
-        # Calculate cutoff in UTC
+        # -------------------------------------------------------
+        # 3. Extract and return inactive accounts
+        # -------------------------------------------------------
         $cutoffDate = (Get-Date).ToUniversalTime().AddDays(-$DaysThreshold)
 
         # Build userType filter
