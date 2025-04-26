@@ -125,6 +125,17 @@ function Get-ConditionalAccessConfiguration {
             $touCache[$tou.Id] = $tou.DisplayName
         }
 
+        # Country code lookup for named location GEOs
+        $countryCodeLookup = @{}
+
+        [System.Globalization.CultureInfo]::GetCultures(
+            [System.Globalization.CultureTypes]::SpecificCultures
+        ) | ForEach-Object {
+            $r = [System.Globalization.RegionInfo]::new($_.Name)
+            # Duplicate codes just overwrite the same key – fine because the value is identical.
+            $countryCodeLookup[$r.TwoLetterISORegionName] = $r.EnglishName
+        }
+
         #---------------------------------------------------------------------
         # 5. Resolver function for IDs and tokens
         #---------------------------------------------------------------------
@@ -187,13 +198,6 @@ function Get-ConditionalAccessConfiguration {
         # ------------------------------------------------------------------
         # Build policy objects
         # ------------------------------------------------------------------
-
-        # Helper for safe nested property access (PS5‑compatible)
-        function Get-SafeValue {
-            param($Expression, $Default = $null)
-            try { & $Expression } catch { $Default }
-        }
-        
         Write-Verbose 'Building policy objects…'
         $policyObjects = $policies | ForEach-Object {
             $p = $_
@@ -229,8 +233,8 @@ function Get-ConditionalAccessConfiguration {
                 IncludePlatforms        = $p.Conditions.Platforms.IncludePlatforms
                 ExcludePlatforms        = $p.Conditions.Platforms.ExcludePlatforms
 
-                DeviceFilterMode        = Get-SafeValue { $p.Conditions.Devices.DeviceFilter.Mode }
-                DeviceFilterRule        = Get-SafeValue { $p.Conditions.Devices.DeviceFilter.Rule }
+                DeviceFilterMode        = $p.Conditions.Devices.DeviceFilter.Mode
+                DeviceFilterRule        = $p.Conditions.Devices.DeviceFilter.Rule
 
                 # ----- Grant controls ----------------------------------------------------------
                 GrantControls           = $p.GrantControls.BuiltInControls
@@ -248,11 +252,11 @@ function Get-ConditionalAccessConfiguration {
                 }
 
                 # ----- Session controls --------------------------------------------------------
-                CloudAppSecType         = Get-SafeValue { $p.SessionControls.CloudAppSecurity.CloudAppSecurityType }
-                AppEnforcedRestrictions = Get-SafeValue { $p.SessionControls.ApplicationEnforcedRestrictions.IsEnabled }
-                PersistentBrowser       = Get-SafeValue { $p.SessionControls.PersistentBrowser.IsEnabled }
-                TokenProtectionType     = Get-SafeValue { $p.SessionControls.TokenProtection.TokenProtectionType }
-                SignInFrequency         = if (Get-SafeValue { $p.SessionControls.SignInFrequency.IsEnabled }) {
+                CloudAppSecType         = $p.SessionControls.CloudAppSecurity.CloudAppSecurityType
+                AppEnforcedRestrictions = $p.SessionControls.ApplicationEnforcedRestrictions.IsEnabled
+                PersistentBrowser       = $p.SessionControls.PersistentBrowser.IsEnabled
+                TokenProtectionType     = $p.SessionControls.TokenProtection.TokenProtectionType
+                SignInFrequency         = if ($p.SessionControls.SignInFrequency.IsEnabled) {
                     [PSCustomObject]@{
                         Value = $p.SessionControls.SignInFrequency.Value
                         Type  = $p.SessionControls.SignInFrequency.Type
@@ -265,12 +269,22 @@ function Get-ConditionalAccessConfiguration {
         # 7. Build named location objects with IP ranges and Geo details
         #---------------------------------------------------------------------
         $namedLocationObjects = $namedLocs | ForEach-Object {
+
+            # Convert the country codes to an array of objects holding the code and the country name.
+            $countryCodes = $_.AdditionalProperties.countriesAndRegions
+            $countries = foreach ($code in $countryCodes) {
+                [pscustomobject]@{
+                    Code = $code
+                    Name = $countryCodeLookup[$code]
+                }
+            }
+            
             [PSCustomObject]@{
                 Id                                = $_.Id
                 DisplayName                       = $_.DisplayName
                 IsTrusted                         = if ($_.AdditionalProperties.isTrusted) { $true } else { $false }
                 IpRanges                          = $_.AdditionalProperties.ipRanges.cidrAddress
-                Countries                         = $_.AdditionalProperties.countriesAndRegions
+                Countries                         = $countries
                 IncludeUnknownCountriesAndRegions = if ($_.AdditionalProperties.includeUnknownCountriesAndRegions) { $true } else { $false }
                 CountryLookupMethod               = if ($_.AdditionalProperties.countryLookupMethod) { $_.AdditionalProperties.countryLookupMethod } else { $null }
             }
@@ -283,7 +297,6 @@ function Get-ConditionalAccessConfiguration {
             Policies       = $policyObjects
             NamedLocations = $namedLocationObjects
         }
-
         return $result
     }
     catch {
