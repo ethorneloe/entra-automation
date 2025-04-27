@@ -1,38 +1,51 @@
 <#
 .SYNOPSIS
     Retrieve Conditional Access policies, named locations, and Terms of Use agreements as PowerShell objects.
+
 .DESCRIPTION
     Connects to Microsoft Graph to fetch all Conditional Access policies, named locations, and Terms of Use agreements.
     Resolves GUIDs for users, groups, applications, roles, locations, and ToU policies into human-readable names using in-memory caches.
     Supports interactive, certificate-based, system-assigned MI, or user-assigned MI authentication, and can reuse an existing Graph session.
     Returns a single object containing 'Policies', 'NamedLocations', and 'TermsOfUseAgreements'.
+
 .PARAMETER ClientId
     The App (client) ID for certificate-based authentication.
+
 .PARAMETER CertificateThumbprint
     The certificate thumbprint in the local machine or user store for certificate auth.
+
 .PARAMETER TenantId
     Tenant ID for certificate auth.
+
 .PARAMETER UseSystemMI
     When specified, uses the system-assigned Managed Identity.
+
 .PARAMETER UserMIClientId
     Client ID of a user-assigned Managed Identity.
+
 .PARAMETER UseExistingGraphSession
     Skip creating a new Graph session if set.
+
 .EXAMPLE
     # Interactive connection
     Get-ConditionalAccessConfiguration
+
 .EXAMPLE
     # Certificate-based
     Get-ConditionalAccessConfiguration -ClientId <appId> -CertificateThumbprint <thumb> -TenantId <tenantId>
+
 .EXAMPLE
     # System-assigned MI
     Get-ConditionalAccessConfiguration -UseSystemMI
+
 .EXAMPLE
     # User-assigned MI
     Get-ConditionalAccessConfiguration -UserMIClientId <identityClientId>
+
 .EXAMPLE
     # Reuse session
     Get-ConditionalAccessConfiguration -UseExistingGraphSession
+
 .NOTES
     # This function makes use of the CountryCodeLookup data file in this module("$PSScriptRoot\data\CountryCodeLookup.ps1") to resolve country codes to names.
 #>
@@ -66,6 +79,7 @@ function Get-ConditionalAccessConfiguration {
         Import-Module Microsoft.Graph.Identity.SignIns -ErrorAction Stop
         Import-Module Microsoft.Graph.Users -ErrorAction Stop
         Import-Module Microsoft.Graph.Groups -ErrorAction Stop
+        Import-Module Microsoft.Graph.Identity.DirectoryManagement -ErrorAction Stop
 
         #---------------------------------------------------------------------
         # 2. Connect to Microsoft Graph
@@ -97,7 +111,7 @@ function Get-ConditionalAccessConfiguration {
 
                 'Default' {
                     Connect-MgGraph `
-                        -Scopes 'Policy.Read.All', 'Directory.Read.All', 'Agreement.Read.All' `
+                        -Scopes 'Policy.Read.All', 'Directory.Read.All', 'Agreement.Read.All', 'CrossTenantInformation.ReadBasic.All' `
                         -NoWelcome
                 }
             }
@@ -135,7 +149,7 @@ function Get-ConditionalAccessConfiguration {
         function Resolve-Entity {
             param(
                 [string]$Id,
-                [ValidateSet('User', 'Group', 'App', 'Role', 'Location', 'TermsOfUse')] [string]$Type
+                [ValidateSet('User', 'Group', 'App', 'Role', 'Location', 'TermsOfUse', 'Tenant')] [string]$Type
             )
 
             if (-not $Id) {
@@ -185,6 +199,15 @@ function Get-ConditionalAccessConfiguration {
                 'TermsOfUse' {
                     return [PSCustomObject]@{ Id = $Id; DisplayName = $touCache[$Id] -or "UnknownToU($Id)" }
                 }
+                'Tenant' {
+                    Try {
+                        return (Find-MgTenantRelationshipTenantInformationByTenantId -TenantId $Id).DisplayName
+                    }
+                    catch {
+                        return "UnknownTenant($Id)"
+                    }
+
+                }
             }
         }
 
@@ -195,66 +218,87 @@ function Get-ConditionalAccessConfiguration {
         $policyObjects = $policies | ForEach-Object {
             $p = $_
             [PSCustomObject]@{
-                DisplayName             = $p.DisplayName
-                PolicyId                = $p.Id
-                State                   = $p.State
-                Created                 = $p.CreatedDateTime
-                Modified                = $p.ModifiedDateTime
+                DisplayName                                 = $p.DisplayName
+                PolicyId                                    = $p.Id
+                State                                       = $p.State
+                Created                                     = $p.CreatedDateTime
+                Modified                                    = $p.ModifiedDateTime
+
+                # ----- applications ------------------------------------------------------------
+                # Based on https://learn.microsoft.com/en-us/graph/api/resources/conditionalaccessconditionset?view=graph-rest-1.0
+                IncludeApps                                 = $p.Conditions.Applications.IncludeApplications | ForEach-Object { Resolve-Entity $_ 'App' }
+                ExcludeApps                                 = $p.Conditions.Applications.ExcludeApplications | ForEach-Object { Resolve-Entity $_ 'App' }
+                IncludeUserActions                          = $p.Conditions.Applications.IncludeUserActions
+                ApplicationFilter                           = $p.Conditions.Applications.applicationFilter
+
+                # ----- authenticationFlows ------------------------------------------------------------
+                AuthenticationFlows                         = $p.Conditions.AuthenticationFlows
+
+                # ----- clientApplications ------------------------------------------------------------
+                ExcludeServicePrincipals                    = $p.Conditions.ClientApplications.excludeServicePrincipals
+                IncludeServicePrincipals                    = $p.Conditions.ClientApplications.includeServicePrincipals
+                ServicePrincipalFilterMode                  = $p.Conditions.ClientApplications.servicePrincipalFilter.mode
+                ServicePrincipalFilterRule                  = $p.Conditions.ClientApplications.servicePrincipalFilter.rule
+
+                # ----- clientAppTypes ------------------------------------------------------------
+                ClientAppTypes                              = $p.Conditions.ClientAppTypes
+
+                # ----- devices ------------------------------------------------------------
+                DeviceFilterMode                            = $p.Conditions.Devices.DeviceFilter.Mode
+                DeviceFilterRule                            = $p.Conditions.Devices.DeviceFilter.Rule
+
+                # ----- locations ---------------------------------------------------------------
+                IncludeLocations                            = $p.Conditions.Locations.IncludeLocations | ForEach-Object { Resolve-Entity $_ 'Location' }
+                ExcludeLocations                            = $p.Conditions.Locations.ExcludeLocations | ForEach-Object { Resolve-Entity $_ 'Location' }
+
+                # ----- platforms ---------------------------------------------------------------
+                IncludePlatforms                            = $p.Conditions.Platforms.IncludePlatforms
+                ExcludePlatforms                            = $p.Conditions.Platforms.ExcludePlatforms
+
+                # ----- Risk Levels -----------------------------------------------
+                UserRiskLevels                              = $p.Conditions.UserRiskLevels
+                SignInRiskLevels                            = $p.Conditions.SignInRiskLevels
+                InsiderRiskLevels                           = $p.Conditions.Users.InsiderRiskLevels
 
                 # ----- Users / groups / roles --------------------------------------------------
-                IncludeUsers            = $p.Conditions.Users.IncludeUsers    | ForEach-Object { Resolve-Entity $_ 'User' }
-                ExcludeUsers            = $p.Conditions.Users.ExcludeUsers    | ForEach-Object { Resolve-Entity $_ 'User' }
-                IncludeGroups           = $p.Conditions.Users.IncludeGroups   | ForEach-Object { Resolve-Entity $_ 'Group' }
-                ExcludeGroups           = $p.Conditions.Users.ExcludeGroups   | ForEach-Object { Resolve-Entity $_ 'Group' }
-                IncludeRoles            = $p.Conditions.Users.IncludeRoles    | ForEach-Object { Resolve-Entity $_ 'Role' }
-                ExcludeRoles            = $p.Conditions.Users.ExcludeRoles    | ForEach-Object { Resolve-Entity $_ 'Role' }
-
-                # ----- Applications ------------------------------------------------------------
-                IncludeApps             = $p.Conditions.Applications.IncludeApplications | ForEach-Object { Resolve-Entity $_ 'App' }
-                ExcludeApps             = $p.Conditions.Applications.ExcludeApplications | ForEach-Object { Resolve-Entity $_ 'App' }
-                IncludeUserActions      = $p.Conditions.Applications.IncludeUserActions
-
-                # ----- Locations ---------------------------------------------------------------
-                IncludeLocations        = $p.Conditions.Locations.IncludeLocations | ForEach-Object { Resolve-Entity $_ 'Location' }
-                ExcludeLocations        = $p.Conditions.Locations.ExcludeLocations | ForEach-Object { Resolve-Entity $_ 'Location' }
-
-                # ----- Risk / platform / device -----------------------------------------------
-                UserRiskLevels          = $p.Conditions.UserRiskLevels
-                SignInRiskLevels        = $p.Conditions.SignInRiskLevels
-                InsiderRiskLevels       = $p.Conditions.Users.InsiderRiskLevels
-                ClientAppTypes          = $p.Conditions.ClientAppTypes
-                IncludePlatforms        = $p.Conditions.Platforms.IncludePlatforms
-                ExcludePlatforms        = $p.Conditions.Platforms.ExcludePlatforms
-
-                DeviceFilterMode        = $p.Conditions.Devices.DeviceFilter.Mode
-                DeviceFilterRule        = $p.Conditions.Devices.DeviceFilter.Rule
+                IncludeUsers                                = $p.Conditions.Users.IncludeUsers    | ForEach-Object { Resolve-Entity $_ 'User' }
+                ExcludeUsers                                = $p.Conditions.Users.ExcludeUsers    | ForEach-Object { Resolve-Entity $_ 'User' }
+                IncludeGroups                               = $p.Conditions.Users.IncludeGroups   | ForEach-Object { Resolve-Entity $_ 'Group' }
+                ExcludeGroups                               = $p.Conditions.Users.ExcludeGroups   | ForEach-Object { Resolve-Entity $_ 'Group' }
+                IncludeRoles                                = $p.Conditions.Users.IncludeRoles    | ForEach-Object { Resolve-Entity $_ 'Role' }
+                ExcludeRoles                                = $p.Conditions.Users.ExcludeRoles    | ForEach-Object { Resolve-Entity $_ 'Role' }
+                IncludeGuestsOrExternalUsers                = $p.Conditions.Users.IncludeGuestsOrExternalUsers.guestOrExternalUserTypes
+                ExcludeGuestsOrExternalUsers                = $p.Conditions.Users.ExcludeGuestsOrExternalUsers.guestOrExternalUserTypes
+                IncludeExternalTenantsMembershipKind        = $p.Conditions.Users.IncludeGuestsOrExternalUsers.externalTenants.MembershipKind
+                IncludeExternalTenantsMembers               = $p.Conditions.Users.IncludeGuestsOrExternalUsers.externalTenants.AdditionalProperties.members | ForEach-Object { Resolve-Entity $_ 'Tenant' }
+                ExcludeExternalTenantsMembershipKind        = $p.Conditions.Users.ExcludeGuestsOrExternalUsers.externalTenants.MembershipKind
+                ExcludeExternalTenantsMembers               = $p.Conditions.Users.ExcludeGuestsOrExternalUsers.externalTenants.AdditionalProperties.members | ForEach-Object { Resolve-Entity $_ 'Tenant' }
 
                 # ----- Grant controls ----------------------------------------------------------
-                GrantControls           = $p.GrantControls.BuiltInControls
-                CustomAuthFactors       = $p.GrantControls.CustomAuthenticationFactors
-                TermsOfUse              = $p.GrantControls.TermsOfUse | ForEach-Object { Resolve-Entity $_ 'TermsOfUse' }
-                Operator                = $p.GrantControls.Operator
-                AuthenticationStrength  = if ($p.GrantControls.AuthenticationStrength) {
-                    [PSCustomObject]@{
-                        AuthenticationStrengthId = $p.GrantControls.AuthenticationStrength.Id
-                        DisplayName              = $p.GrantControls.AuthenticationStrength.DisplayName
-                        PolicyType               = $p.GrantControls.AuthenticationStrength.PolicyType
-                        AllowedCombinations      = $p.GrantControls.AuthenticationStrength.AllowedCombinations
-                        RequirementsSatisfied    = $p.GrantControls.AuthenticationStrength.RequirementsSatisfied
-                    }
-                }
+                # Based on https://learn.microsoft.com/en-us/graph/api/resources/conditionalaccessgrantcontrols?view=graph-rest-1.0
+                BuiltInControls                             = $p.GrantControls.BuiltInControls
+                customAuthenticationFactors                 = $p.GrantControls.CustomAuthenticationFactors
+                TermsOfUse                                  = $p.GrantControls.TermsOfUse | ForEach-Object { Resolve-Entity $_ 'TermsOfUse' }
+                Operator                                    = $p.GrantControls.Operator
+                AuthenticationStrengthId                    = $p.GrantControls.AuthenticationStrength.Id
+                AuthenticationStrengthDisplayName           = $p.GrantControls.AuthenticationStrength.DisplayName
+                AuthenticationStrengthPolicyType            = $p.GrantControls.AuthenticationStrength.PolicyType
+                AuthenticationStrengthAllowedCombinations   = $p.GrantControls.AuthenticationStrength.AllowedCombinations
+                AuthenticationStrengthRequirementsSatisfied = $p.GrantControls.AuthenticationStrength.RequirementsSatisfied
 
                 # ----- Session controls --------------------------------------------------------
-                CloudAppSecType         = $p.SessionControls.CloudAppSecurity.CloudAppSecurityType
-                AppEnforcedRestrictions = $p.SessionControls.ApplicationEnforcedRestrictions.IsEnabled
-                PersistentBrowser       = $p.SessionControls.PersistentBrowser.IsEnabled
-                TokenProtectionType     = $p.SessionControls.TokenProtection.TokenProtectionType
-                SignInFrequency         = if ($p.SessionControls.SignInFrequency.IsEnabled) {
-                    [PSCustomObject]@{
-                        Value = $p.SessionControls.SignInFrequency.Value
-                        Type  = $p.SessionControls.SignInFrequency.Type
-                    }
-                }
+                # Based on https://learn.microsoft.com/en-us/graph/api/resources/conditionalaccesssessioncontrols?view=graph-rest-1.0
+                ApplicationEnforcedRestrictionsIsEnabled    = $p.SessionControls.ApplicationEnforcedRestrictions.IsEnabled
+                CloudAppSecurityType                        = $p.SessionControls.CloudAppSecurity.CloudAppSecurityType
+                CloudAppSecurityIsEnabled                   = $p.SessionControls.CloudAppSecurity.IsEnabled
+                DisableResilienceDefaults                   = $p.SessionControls.DisableResilienceDefaults
+                PersistentBrowserIsEnabled                  = $p.SessionControls.PersistentBrowser.IsEnabled
+                PersistentBrowserMode                       = $p.SessionControls.PersistentBrowser.Mode
+                SignInFrequencyAuthenticationType           = $p.SessionControls.SignInFrequency.AuthenticationType
+                SignInFrequencyInterval                     = $p.SessionControls.SignInFrequency.FrequencyInterval
+                SignInFrequencyIsEnabled                    = $p.SessionControls.SignInFrequency.IsEnabled
+                SignInFrequencyType                         = $p.SessionControls.SignInFrequency.Type
+                SignInFrequencyValue                        = $p.SessionControls.SignInFrequency.Value
             }
         }
 
@@ -274,11 +318,13 @@ function Get-ConditionalAccessConfiguration {
 
             [PSCustomObject]@{
                 Id                                = $_.Id
+                CreatedDateTime                   = $_.CreatedDateTime
+                ModifiedDateTime                  = $_.ModifiedDateTime
                 DisplayName                       = $_.DisplayName
-                IsTrusted                         = if ($_.AdditionalProperties.isTrusted) { $true } else { $false }
+                IsTrusted                         = $_.AdditionalProperties.isTrusted
                 IpRanges                          = $_.AdditionalProperties.ipRanges.cidrAddress
                 Countries                         = $countries
-                IncludeUnknownCountriesAndRegions = if ($_.AdditionalProperties.includeUnknownCountriesAndRegions) { $true } else { $false }
+                IncludeUnknownCountriesAndRegions = $_.AdditionalProperties.includeUnknownCountriesAndRegions
                 CountryLookupMethod               = if ($_.AdditionalProperties.countryLookupMethod) { $_.AdditionalProperties.countryLookupMethod } else { $null }
             }
         }

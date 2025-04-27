@@ -1,3 +1,5 @@
+# This country code lookup table is based on the names as they appear in the conditional access policy user interface in Entra (as at 26/04/2025).
+# The lookup is configured as a module variable and is loaded as part of the psm1 file.
 [ordered]@{
     'AF' = 'Afghanistan'
     'AX' = 'Åland Islands'

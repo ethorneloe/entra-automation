@@ -33,10 +33,10 @@ Add-EntraEligibleRoleAssignmentsFromCsv -CsvPath "C:\assignments.csv" -StartDate
 
 In this example, the function reads 'assignments.csv', ensures roles and users exist, then removes
 any active assignments at the same scope if present, and finally creates an eligible assignment for each record.
-#>
 
 .NOTES
 # Make sure to connect with an account that has the necessary permissions to manage role assignments in Entra.
+#>
 function Add-EntraEligibleRoleAssignmentsFromCsv {
     [CmdletBinding()]
     param (
