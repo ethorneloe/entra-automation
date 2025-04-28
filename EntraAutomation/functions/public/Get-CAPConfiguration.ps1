@@ -8,124 +8,33 @@
     Supports interactive, certificate-based, system-assigned MI, or user-assigned MI authentication, and can reuse an existing Graph session.
     Returns a single object containing 'Policies', 'NamedLocations', and 'TermsOfUseAgreements'.
 
-.PARAMETER ClientId
-    The App (client) ID for certificate-based authentication.
-
-.PARAMETER CertificateThumbprint
-    The certificate thumbprint in the local machine or user store for certificate auth.
-
-.PARAMETER TenantId
-    Tenant ID for certificate auth.
-
-.PARAMETER UseSystemMI
-    When specified, uses the system-assigned Managed Identity.
-
-.PARAMETER UserMIClientId
-    Client ID of a user-assigned Managed Identity.
-
-.PARAMETER UseExistingGraphSession
-    Skip creating a new Graph session if set.
-
 .EXAMPLE
     # Interactive connection
     Get-CAPConfiguration
 
-.EXAMPLE
-    # Certificate-based
-    Get-CAPConfiguration -ClientId <appId> -CertificateThumbprint <thumb> -TenantId <tenantId>
-
-.EXAMPLE
-    # System-assigned MI
-    Get-CAPConfiguration -UseSystemMI
-
-.EXAMPLE
-    # User-assigned MI
-    Get-CAPConfiguration -UserMIClientId <identityClientId>
-
-.EXAMPLE
-    # Reuse session
-    Get-CAPConfiguration -UseExistingGraphSession
-
 .NOTES
-    # This function makes use of the CountryCodeLookup data file in this module("$PSScriptRoot\data\CountryCodeLookup.ps1") to resolve country codes to names.
+    Make sure to run Connect-MgGraph and connect with appropriate scopes.
+    This function makes use of the CountryCodeLookup data file in this module("$PSScriptRoot\data\CountryCodeLookup.ps1") to resolve country codes to names.
 #>
 function Get-CAPConfiguration {
-    [CmdletBinding(DefaultParameterSetName = 'Default')]
-    param(
-        [Parameter(ParameterSetName = 'Certificate', Mandatory = $true)]
-        [string]$ClientId,
 
-        [Parameter(ParameterSetName = 'Certificate', Mandatory = $true)]
-        [string]$CertificateThumbprint,
-
-        [Parameter(ParameterSetName = 'Certificate', Mandatory = $true)]
-        [string]$TenantId,
-
-        [Parameter(ParameterSetName = 'SystemMI', Mandatory = $true)]
-        [switch]$UseSystemMI,
-
-        [Parameter(ParameterSetName = 'UserMI', Mandatory = $true)]
-        [string]$UserMIClientId,
-
-        [Parameter(ParameterSetName = 'Default')]
-        [switch]$UseExistingGraphSession
-    )
-
-    try {
         #---------------------------------------------------------------------
         # 1. Import required modules
         #---------------------------------------------------------------------
-        Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
         Import-Module Microsoft.Graph.Identity.SignIns -ErrorAction Stop
         Import-Module Microsoft.Graph.Users -ErrorAction Stop
         Import-Module Microsoft.Graph.Groups -ErrorAction Stop
         Import-Module Microsoft.Graph.Identity.DirectoryManagement -ErrorAction Stop
 
         #---------------------------------------------------------------------
-        # 2. Connect to Microsoft Graph
-        #---------------------------------------------------------------------
-        if (-not $UseExistingGraphSession) {
-            Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
-            switch ($PSCmdlet.ParameterSetName) {
-
-                'Certificate' {
-                    Connect-MgGraph `
-                        -ClientId $ClientId `
-                        -CertificateThumbprint $CertificateThumbprint `
-                        -TenantId $TenantId `
-                        -NoWelcome
-                }
-
-                'SystemMI' {
-                    Connect-MgGraph `
-                        -Identity `
-                        -NoWelcome
-                }
-
-                'UserMI' {
-                    Connect-MgGraph `
-                        -Identity `
-                        -ClientId $UserMIClientId `
-                        -NoWelcome
-                }
-
-                'Default' {
-                    Connect-MgGraph `
-                        -Scopes 'Policy.Read.All', 'Directory.Read.All', 'Agreement.Read.All', 'CrossTenantInformation.ReadBasic.All' `
-                        -NoWelcome
-                }
-            }
-        }
-
-        #---------------------------------------------------------------------
-        # 3. Fetch data
+        # 2. Fetch data
         #---------------------------------------------------------------------
         $policies = Get-MgIdentityConditionalAccessPolicy -All
         $namedLocs = @(Get-MgIdentityConditionalAccessNamedLocation -All)
         $touAgreements = @(Get-MgIdentityGovernanceTermsOfUseAgreement -All)
 
         #---------------------------------------------------------------------
-        # 4. Initialize caches
+        # 3. Initialize caches
         #---------------------------------------------------------------------
         # Note that the country lookup used for named locations is a global variable
         # defined in the data portion of this module.
@@ -144,7 +53,7 @@ function Get-CAPConfiguration {
         }
 
         #---------------------------------------------------------------------
-        # 5. Resolver function for IDs and tokens
+        # 4. Resolver function for IDs and tokens
         #---------------------------------------------------------------------
         function Resolve-Entity {
             param(
@@ -212,7 +121,7 @@ function Get-CAPConfiguration {
         }
 
         # ------------------------------------------------------------------
-        # 6. Build policy objects
+        # 5. Build policy objects
         # ------------------------------------------------------------------
         Write-Verbose 'Building policy objects…'
         $policyObjects = $policies | ForEach-Object {
@@ -303,7 +212,7 @@ function Get-CAPConfiguration {
         }
 
         #---------------------------------------------------------------------
-        # 7. Build named location objects with IP ranges and Geo details
+        # 6. Build named location objects with IP ranges and Geo details
         #---------------------------------------------------------------------
         $namedLocationObjects = $namedLocs | ForEach-Object {
 
@@ -330,20 +239,12 @@ function Get-CAPConfiguration {
         }
 
         #---------------------------------------------------------------------
-        # 8. Combine and return results
+        # 7. Combine and return results
         #---------------------------------------------------------------------
         $result = [PSCustomObject]@{
             Policies       = $policyObjects
             NamedLocations = $namedLocationObjects
         }
         return $result
-    }
-    catch {
-        Write-Error "Get-CAPConfiguration failed: $_"
-    }
-    finally {
-        if (-not $UseExistingGraphSession) {
-            Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
-        }
     }
 }
