@@ -28,28 +28,28 @@
 
 .EXAMPLE
     # Interactive connection
-    Get-ConditionalAccessConfiguration
+    Get-CAPConfiguration
 
 .EXAMPLE
     # Certificate-based
-    Get-ConditionalAccessConfiguration -ClientId <appId> -CertificateThumbprint <thumb> -TenantId <tenantId>
+    Get-CAPConfiguration -ClientId <appId> -CertificateThumbprint <thumb> -TenantId <tenantId>
 
 .EXAMPLE
     # System-assigned MI
-    Get-ConditionalAccessConfiguration -UseSystemMI
+    Get-CAPConfiguration -UseSystemMI
 
 .EXAMPLE
     # User-assigned MI
-    Get-ConditionalAccessConfiguration -UserMIClientId <identityClientId>
+    Get-CAPConfiguration -UserMIClientId <identityClientId>
 
 .EXAMPLE
     # Reuse session
-    Get-ConditionalAccessConfiguration -UseExistingGraphSession
+    Get-CAPConfiguration -UseExistingGraphSession
 
 .NOTES
     # This function makes use of the CountryCodeLookup data file in this module("$PSScriptRoot\data\CountryCodeLookup.ps1") to resolve country codes to names.
 #>
-function Get-ConditionalAccessConfiguration {
+function Get-CAPConfiguration {
     [CmdletBinding(DefaultParameterSetName = 'Default')]
     param(
         [Parameter(ParameterSetName = 'Certificate', Mandatory = $true)]
@@ -339,7 +339,7 @@ function Get-ConditionalAccessConfiguration {
         return $result
     }
     catch {
-        Write-Error "Get-ConditionalAccessConfiguration failed: $_"
+        Write-Error "Get-CAPConfiguration failed: $_"
     }
     finally {
         if (-not $UseExistingGraphSession) {
