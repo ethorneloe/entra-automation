@@ -48,183 +48,203 @@ function Export-ExpiringEntraAppCreds {
 
         [switch]$IncludeExpired = $false,
 
-        [switch]$IncludeAllCredentials = $false
+        [switch]$IncludeAllCredentials = $false,
+
+        [switch]$UseExistingGraphSession
     )
+    Try {
 
-    # -------------------------------------------------------
-    # 1. Import required modules
-    # -------------------------------------------------------
-    import-module Microsoft.Graph.Authentication -Force -ErrorAction Stop
-    Import-Module Microsoft.Graph.Applications -Force -ErrorAction Stop
+        # -------------------------------------------------------
+        # 1. Import required modules
+        # -------------------------------------------------------
+        import-module Microsoft.Graph.Authentication -Force -ErrorAction Stop
+        Import-Module Microsoft.Graph.Applications -Force -ErrorAction Stop
 
-    # -------------------------------------------------------
-    # 2. Retrieve all applications
-    # -------------------------------------------------------
-    $Applications = Get-MgApplication -All -Select "DisplayName,AppId,Id,PasswordCredentials,KeyCredentials" -ExpandProperty "Owners"
+        #---------------------------------------------------------------------
+        # 2. Connect to Graph if required
+        #---------------------------------------------------------------------
+        if (-not $UseExistingGraphSession) {
+            Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
+            Connect-MgGraph -Scopes 'Directory.Read.All'  -NoWelcome -ErrorAction Stop
+        }
 
-    # -------------------------------------------------------
-    # 3. Process each application in parallel and retrieve credential details
-    # -------------------------------------------------------
-    $results = [System.Collections.Concurrent.ConcurrentBag[pscustomobject]]::new()
+        # -------------------------------------------------------
+        # 3. Retrieve all applications
+        # -------------------------------------------------------
+        $Applications = Get-MgApplication -All -Select "DisplayName,AppId,Id,PasswordCredentials,KeyCredentials" -ExpandProperty "Owners"
 
-    $Applications | ForEach-Object -Parallel {
+        # -------------------------------------------------------
+        # 4. Process each application in parallel and retrieve credential details
+        # -------------------------------------------------------
+        $results = [System.Collections.Concurrent.ConcurrentBag[pscustomobject]]::new()
 
-        $_results = $using:results
-        $_DaysUntilExpiryThreshold = $using:DaysUntilExpiryThreshold
-        $_IncludeExpired = $using:IncludeExpired.IsPresent
-        $_IncludeAllCredentials = $using:IncludeAllCredentials.IsPresent
-        $Today = Get-Date -AsUTC
+        $Applications | ForEach-Object -Parallel {
 
-        $App = $_
-        $AppName = $App.DisplayName
-        $ObjectId = $App.Id
-        $AppId = $App.AppId
+            $_results = $using:results
+            $_DaysUntilExpiryThreshold = $using:DaysUntilExpiryThreshold
+            $_IncludeExpired = $using:IncludeExpired.IsPresent
+            $_IncludeAllCredentials = $using:IncludeAllCredentials.IsPresent
+            $Today = Get-Date -AsUTC
 
-        $Secrets = $App.PasswordCredentials
-        $Certs = $App.KeyCredentials
+            $App = $_
+            $AppName = $App.DisplayName
+            $ObjectId = $App.Id
+            $AppId = $App.AppId
 
-        $Owners = $App.Owners
-        $OwnerUPNs = $Owners.AdditionalProperties.userPrincipalName -join '|'
-        $OwnerIDs = $Owners.Id -join '|'
-        $OwnerEmails = $Owners.AdditionalProperties.mail -join '|'
+            $Secrets = $App.PasswordCredentials
+            $Certs = $App.KeyCredentials
 
-        foreach ($Secret in $Secrets) {
+            $Owners = $App.Owners
+            $OwnerUPNs = $Owners.AdditionalProperties.userPrincipalName -join '|'
+            $OwnerIDs = $Owners.Id -join '|'
+            $OwnerEmails = $Owners.AdditionalProperties.mail -join '|'
 
-            $EndDate = $Secret.EndDateTime
-            $StartDate = $Secret.StartDateTime
-            $DaysLeft = ($EndDate - $Today).Days
-            $SecretName = $Secret.DisplayName
+            foreach ($Secret in $Secrets) {
 
-            if ($_IncludeAllCredentials -or ($DaysLeft -le $_DaysUntilExpiryThreshold)) {
+                $EndDate = $Secret.EndDateTime
+                $StartDate = $Secret.StartDateTime
+                $DaysLeft = ($EndDate - $Today).Days
+                $SecretName = $Secret.DisplayName
 
-                # Skip expired secrets if IncludeExpired is set to false
-                if (-not $_IncludeAllCredentials) {
-                    if ($_IncludeExpired -eq $false -and $DaysLeft -lt 0) {
-                        continue
+                if ($_IncludeAllCredentials -or ($DaysLeft -le $_DaysUntilExpiryThreshold)) {
+
+                    # Skip expired secrets if IncludeExpired is set to false
+                    if (-not $_IncludeAllCredentials) {
+                        if ($_IncludeExpired -eq $false -and $DaysLeft -lt 0) {
+                            continue
+                        }
                     }
-                }
 
-                $AppDetails = [PSCustomObject]@{
-                    'EntraObjectType' = 'App Registration'
-                    'CredentialType'  = 'Secret'
-                    'AppName'         = $AppName
-                    'AppId'           = $AppId
-                    'ObjectId'        = $ObjectId
-                    'CredId'          = $Secret.KeyId
-                    'CredName'        = $SecretName
-                    'CredStartDate'   = $StartDate
-                    'CredEndDate'     = $EndDate
-                    'OwnerIDs'        = $OwnerIDs
-                    'OwnerUPNs'       = $OwnerUPNs
-                    'OwnerEmails'     = $OwnerEmails
-                }
+                    $AppDetails = [PSCustomObject]@{
+                        'EntraObjectType' = 'App Registration'
+                        'CredentialType'  = 'Secret'
+                        'AppName'         = $AppName
+                        'AppId'           = $AppId
+                        'ObjectId'        = $ObjectId
+                        'CredId'          = $Secret.KeyId
+                        'CredName'        = $SecretName
+                        'CredStartDate'   = $StartDate
+                        'CredEndDate'     = $EndDate
+                        'OwnerIDs'        = $OwnerIDs
+                        'OwnerUPNs'       = $OwnerUPNs
+                        'OwnerEmails'     = $OwnerEmails
+                    }
 
-                $_results.add($AppDetails)
+                    $_results.add($AppDetails)
+                }
+            }
+
+            foreach ($Cert in $Certs) {
+
+                $EndDate = $Cert.EndDateTime
+                $StartDate = $Cert.StartDateTime
+                $DaysLeft = ($EndDate - $Today).Days
+                $CertName = $Cert.DisplayName
+
+                if ($_IncludeAllCredentials -or ($DaysLeft -le $_DaysUntilExpiryThreshold)) {
+
+                    # Skip expired certificates if IncludeExpired is set to false
+                    if (-not $_IncludeAllCredentials) {
+                        if ($_IncludeExpired -eq $false -and $DaysLeft -lt 0) {
+                            continue
+                        }
+                    }
+
+                    $AppDetails = [PSCustomObject]@{
+                        'EntraObjectType' = 'App Registration'
+                        'CredentialType'  = 'Certificate'
+                        'AppName'         = $AppName
+                        'AppId'           = $AppId
+                        'ObjectId'        = $ObjectId
+                        'CredId'          = $Cert.KeyId
+                        'CredName'        = $CertName
+                        'CredStartDate'   = $StartDate
+                        'CredEndDate'     = $EndDate
+                        'OwnerIDs'        = $OwnerIDs
+                        'OwnerUPNs'       = $OwnerUPNs
+                        'OwnerEmails'     = $OwnerEmails
+                    }
+
+                    $_results.add($AppDetails)
+                }
             }
         }
 
-        foreach ($Cert in $Certs) {
 
-            $EndDate = $Cert.EndDateTime
-            $StartDate = $Cert.StartDateTime
-            $DaysLeft = ($EndDate - $Today).Days
-            $CertName = $Cert.DisplayName
+        # -------------------------------------------------------
+        # 5. Retrieve all Service Principals with SAML signing certificates
+        # -------------------------------------------------------
+        $ServicePrincipals = Get-MgServicePrincipal -Filter "PreferredSingleSignOnMode eq 'saml'" -Select "DisplayName,AppId,Id,PasswordCredentials" -ExpandProperty "Owners"
 
-            if ($_IncludeAllCredentials -or ($DaysLeft -le $_DaysUntilExpiryThreshold)) {
+        # -------------------------------------------------------
+        # 6. Process each application in parallel and retrieve credential details
+        # -------------------------------------------------------
+        $ServicePrincipals | ForEach-Object -Parallel {
 
-                # Skip expired certificates if IncludeExpired is set to false
-                if (-not $_IncludeAllCredentials) {
-                    if ($_IncludeExpired -eq $false -and $DaysLeft -lt 0) {
-                        continue
+            $_results = $using:results
+            $_DaysUntilExpiryThreshold = $using:DaysUntilExpiryThreshold
+            $_IncludeExpired = $using:IncludeExpired.IsPresent
+            $_IncludeAllCredentials = $using:IncludeAllCredentials.IsPresent
+            $Today = Get-Date -AsUTC
+
+            $SP = $_
+            $AppName = $SP.DisplayName
+            $ObjectId = $SP.Id
+            $AppId = $SP.AppId
+
+            $SamlCerts = $SP.PasswordCredentials
+
+            $Owners = $SP.Owners
+            $OwnerUPNs = $Owners.AdditionalProperties.userPrincipalName -join '|'
+            $OwnerIDs = $Owners.Id -join '|'
+            $OwnerEmails = $Owners.AdditionalProperties.mail -join '|'
+
+            foreach ($Cert in $SamlCerts) {
+
+                $EndDate = $Cert.EndDateTime
+                $StartDate = $Cert.StartDateTime
+                $DaysLeft = ($EndDate - $Today).Days
+                $CertName = $Cert.DisplayName
+
+                if ($_IncludeAllCredentials -or ($DaysLeft -le $_DaysUntilExpiryThreshold)) {
+
+                    # Skip expired certificates if IncludeExpired is set to false
+                    if (-not $_IncludeAllCredentials) {
+                        if ($_IncludeExpired -eq $false -and $DaysLeft -lt 0) {
+                            continue
+                        }
                     }
-                }
 
-                $AppDetails = [PSCustomObject]@{
-                    'EntraObjectType' = 'App Registration'
-                    'CredentialType'  = 'Certificate'
-                    'AppName'         = $AppName
-                    'AppId'           = $AppId
-                    'ObjectId'        = $ObjectId
-                    'CredId'          = $Cert.KeyId
-                    'CredName'        = $CertName
-                    'CredStartDate'   = $StartDate
-                    'CredEndDate'     = $EndDate
-                    'OwnerIDs'        = $OwnerIDs
-                    'OwnerUPNs'       = $OwnerUPNs
-                    'OwnerEmails'     = $OwnerEmails
-                }
+                    $AppDetails = [PSCustomObject]@{
+                        'EntraObjectType' = 'Service Principal'
+                        'CredentialType'  = 'SAML Signing Certificate'
+                        'AppName'         = $AppName
+                        'AppId'           = $AppId
+                        'ObjectId'        = $ObjectId
+                        'CredId'          = $Cert.KeyId
+                        'CredName'        = $CertName
+                        'CredStartDate'   = $StartDate
+                        'CredEndDate'     = $EndDate
+                        'OwnerIDs'        = $OwnerIDs
+                        'OwnerUPNs'       = $OwnerUPNs
+                        'OwnerEmails'     = $OwnerEmails
+                    }
 
-                $_results.add($AppDetails)
+                    $_results.add($AppDetails)
+                }
             }
+        }
+        # -------------------------------------------------------
+        # 7. Return combined results
+        # -------------------------------------------------------
+        return $results.ToArray()
+    }
+    catch {
+        Write-Error "An unexpected error occurred: $($_.Exception.Message)"
+    }
+    finally {
+        if (-not $UseExistingGraphSession) {
+            Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
         }
     }
-
-
-    # -------------------------------------------------------
-    # 4. Retrieve all Service Principals with SAML signing certificates
-    # -------------------------------------------------------
-    $ServicePrincipals = Get-MgServicePrincipal -Filter "PreferredSingleSignOnMode eq 'saml'" -Select "DisplayName,AppId,Id,PasswordCredentials" -ExpandProperty "Owners"
-
-    # -------------------------------------------------------
-    # 5. Process each application in parallel and retrieve credential details
-    # -------------------------------------------------------
-    $ServicePrincipals | ForEach-Object -Parallel {
-
-        $_results = $using:results
-        $_DaysUntilExpiryThreshold = $using:DaysUntilExpiryThreshold
-        $_IncludeExpired = $using:IncludeExpired.IsPresent
-        $_IncludeAllCredentials = $using:IncludeAllCredentials.IsPresent
-        $Today = Get-Date -AsUTC
-
-        $SP = $_
-        $AppName = $SP.DisplayName
-        $ObjectId = $SP.Id
-        $AppId = $SP.AppId
-
-        $SamlCerts = $SP.PasswordCredentials
-
-        $Owners = $SP.Owners
-        $OwnerUPNs = $Owners.AdditionalProperties.userPrincipalName -join '|'
-        $OwnerIDs = $Owners.Id -join '|'
-        $OwnerEmails = $Owners.AdditionalProperties.mail -join '|'
-
-        foreach ($Cert in $SamlCerts) {
-
-            $EndDate = $Cert.EndDateTime
-            $StartDate = $Cert.StartDateTime
-            $DaysLeft = ($EndDate - $Today).Days
-            $CertName = $Cert.DisplayName
-
-            if ($_IncludeAllCredentials -or ($DaysLeft -le $_DaysUntilExpiryThreshold)) {
-
-                # Skip expired certificates if IncludeExpired is set to false
-                if (-not $_IncludeAllCredentials) {
-                    if ($_IncludeExpired -eq $false -and $DaysLeft -lt 0) {
-                        continue
-                    }
-                }
-
-                $AppDetails = [PSCustomObject]@{
-                    'EntraObjectType' = 'Service Principal'
-                    'CredentialType'  = 'SAML Signing Certificate'
-                    'AppName'         = $AppName
-                    'AppId'           = $AppId
-                    'ObjectId'        = $ObjectId
-                    'CredId'          = $Cert.KeyId
-                    'CredName'        = $CertName
-                    'CredStartDate'   = $StartDate
-                    'CredEndDate'     = $EndDate
-                    'OwnerIDs'        = $OwnerIDs
-                    'OwnerUPNs'       = $OwnerUPNs
-                    'OwnerEmails'     = $OwnerEmails
-                }
-
-                $_results.add($AppDetails)
-            }
-        }
-    }
-    # -------------------------------------------------------
-    # 6. Return combined results
-    # -------------------------------------------------------
-    return $results.ToArray()
 }

@@ -45,7 +45,7 @@ function Export-EntraRoleAssignments {
         #---------------------------------------------------------------------
         if (-not $UseExistingGraphSession) {
             Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
-            Connect-MgGraph -Scopes 'RoleManagement.Read.Directory', 'Directory.Read.All'  -NoWelcome
+            Connect-MgGraph -Scopes 'RoleManagement.Read.Directory', 'Directory.Read.All'  -NoWelcome -ErrorAction Stop
         }
 
         #---------------------------------------------------------------------

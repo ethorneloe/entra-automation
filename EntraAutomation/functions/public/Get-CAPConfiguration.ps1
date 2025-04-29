@@ -36,7 +36,7 @@ function Get-CAPConfiguration {
         #---------------------------------------------------------------------
         if (-not $UseExistingGraphSession) {
             Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
-            Connect-MgGraph -Scopes 'Policy.Read.All', 'Directory.Read.All', 'Agreement.Read.All', 'CrossTenantInformation.ReadBasic.All' -NoWelcome
+            Connect-MgGraph -Scopes 'Policy.Read.All', 'Directory.Read.All', 'Agreement.Read.All', 'CrossTenantInformation.ReadBasic.All' -NoWelcome -ErrorAction Stop
         }
 
         #---------------------------------------------------------------------
