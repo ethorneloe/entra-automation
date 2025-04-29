@@ -10,13 +10,13 @@
 
 .EXAMPLE
     # Interactive connection
-    Get-CAPolicyConfiguration
+    Get-ConditionalAccessConfiguration
 
 .NOTES
     Make sure to run Connect-MgGraph and connect with appropriate scopes.
     This function makes use of the CountryCodeLookup data file in this module("$PSScriptRoot\data\CountryCodeLookup.ps1") to resolve country codes to names.
 #>
-function Get-CAPolicyConfiguration {
+function Get-ConditionalAccessConfiguration {
     [CmdletBinding()]
     param (
         [switch]$UseExistingGraphSession
@@ -55,12 +55,8 @@ function Get-CAPolicyConfiguration {
         $groupCache = @{}
         $appCache = @{}
         $roleCache = @{}
-        $nlCache = @{}
         $touCache = @{}
 
-        foreach ($nl in $namedLocs) {
-            $nlCache[$nl.Id] = $nl.DisplayName
-        }
         foreach ($tou in $touAgreements) {
             $touCache[$tou.Id] = $tou.DisplayName
         }
@@ -115,9 +111,6 @@ function Get-CAPolicyConfiguration {
                     }
                     return [PSCustomObject]@{ Id = $Id; DisplayName = $roleCache[$Id] }
                 }
-                'Location' {
-                    return [PSCustomObject]@{ Id = $Id; DisplayName = $nlCache[$Id] }
-                }
                 'TermsOfUse' {
                     return [PSCustomObject]@{ Id = $Id; DisplayName = $touCache[$Id] -or "UnknownToU($Id)" }
                 }
@@ -133,8 +126,35 @@ function Get-CAPolicyConfiguration {
             }
         }
 
+        #---------------------------------------------------------------------
+        # 6. Build named location objects with IP ranges and Geo details
+        #---------------------------------------------------------------------
+        $namedLocationObjects = $namedLocs | ForEach-Object {
+
+            # Convert the country codes to an array of objects holding the code and the country name.
+            $countryCodes = $_.AdditionalProperties.countriesAndRegions
+            $countries = foreach ($code in $countryCodes) {
+                [pscustomobject]@{
+                    Code = $code
+                    Name = $script:CountryCodeLookup[$code]
+                }
+            }
+
+            [PSCustomObject]@{
+                Id                                = $_.Id
+                CreatedDateTime                   = $_.CreatedDateTime
+                ModifiedDateTime                  = $_.ModifiedDateTime
+                DisplayName                       = $_.DisplayName
+                IsTrusted                         = $_.AdditionalProperties.isTrusted
+                IpRanges                          = $_.AdditionalProperties.ipRanges.cidrAddress
+                Countries                         = $countries
+                IncludeUnknownCountriesAndRegions = $_.AdditionalProperties.includeUnknownCountriesAndRegions
+                CountryLookupMethod               = if ($_.AdditionalProperties.countryLookupMethod) { $_.AdditionalProperties.countryLookupMethod } else { $null }
+            }
+        }
+
         # ------------------------------------------------------------------
-        # 6. Build policy objects
+        # 7. Build policy objects
         # ------------------------------------------------------------------
         Write-Verbose 'Building policy objects…'
         $policyObjects = $policies | ForEach-Object {
@@ -170,8 +190,8 @@ function Get-CAPolicyConfiguration {
                 DeviceFilterRule                            = $p.Conditions.Devices.DeviceFilter.Rule
 
                 # ----- locations ---------------------------------------------------------------
-                IncludeLocations                            = $p.Conditions.Locations.IncludeLocations | ForEach-Object { Resolve-Entity $_ 'Location' }
-                ExcludeLocations                            = $p.Conditions.Locations.ExcludeLocations | ForEach-Object { Resolve-Entity $_ 'Location' }
+                IncludeLocations                            = $namedLocationObjects | Where-Object { $p.Conditions.Locations.IncludeLocations -contains $_.Id }
+                ExcludeLocations                            = $namedLocationObjects | Where-Object { $p.Conditions.Locations.ExcludeLocations -contains $_.Id }
 
                 # ----- platforms ---------------------------------------------------------------
                 IncludePlatforms                            = $p.Conditions.Platforms.IncludePlatforms
@@ -221,33 +241,6 @@ function Get-CAPolicyConfiguration {
                 SignInFrequencyIsEnabled                    = $p.SessionControls.SignInFrequency.IsEnabled
                 SignInFrequencyType                         = $p.SessionControls.SignInFrequency.Type
                 SignInFrequencyValue                        = $p.SessionControls.SignInFrequency.Value
-            }
-        }
-
-        #---------------------------------------------------------------------
-        # 7. Build named location objects with IP ranges and Geo details
-        #---------------------------------------------------------------------
-        $namedLocationObjects = $namedLocs | ForEach-Object {
-
-            # Convert the country codes to an array of objects holding the code and the country name.
-            $countryCodes = $_.AdditionalProperties.countriesAndRegions
-            $countries = foreach ($code in $countryCodes) {
-                [pscustomobject]@{
-                    Code = $code
-                    Name = $script:CountryCodeLookup[$code]
-                }
-            }
-
-            [PSCustomObject]@{
-                Id                                = $_.Id
-                CreatedDateTime                   = $_.CreatedDateTime
-                ModifiedDateTime                  = $_.ModifiedDateTime
-                DisplayName                       = $_.DisplayName
-                IsTrusted                         = $_.AdditionalProperties.isTrusted
-                IpRanges                          = $_.AdditionalProperties.ipRanges.cidrAddress
-                Countries                         = $countries
-                IncludeUnknownCountriesAndRegions = $_.AdditionalProperties.includeUnknownCountriesAndRegions
-                CountryLookupMethod               = if ($_.AdditionalProperties.countryLookupMethod) { $_.AdditionalProperties.countryLookupMethod } else { $null }
             }
         }
 
