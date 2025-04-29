@@ -1,26 +1,24 @@
 <#
 .SYNOPSIS
-Find Conditional Access policies that reference a given country
-(via any Named Location) in their Include / Exclude scopes.
+Find Conditional Access policies that reference a given role
+in their Include / Exclude scopes.
 
-.PARAMETER Country
-English country name (case-insensitive).
+.PARAMETER RolePattern
+Entra Role name (case-insensitive).
 
 .PARAMETER Scope
 'Include', 'Exclude' or 'Both' (default).
 
 .PARAMETER Config
-The object produced by Get-ConditionalAccessConfiguration
-(must contain .Policies and .NamedLocations).
-Accepts pipeline input.
+The object produced by Get-CAPolicyConfiguration. Accepts pipeline input.
 
 .EXAMPLE
-$cfg | Find-CAPoliciesByCountry -Country Brazil
+$cfg | Find-CAPoliciesByRole -Role "Global Reader"
 
 .EXAMPLE
-$cfg | Find-CAPoliciesByCountry Japan -Scope Exclude
+$cfg | Find-CAPoliciesByRole -RolePattern "Global*" -Scope Exclude
 #>
-function Find-CAPoliciesByRoleName {
+function Get-CAPoliciesByRole {
     param(
         [Parameter(Mandatory)]
         [string]$RolePattern,
@@ -47,9 +45,9 @@ function Find-CAPoliciesByRoleName {
             ) -join ', ' }
     },
     @{Name = 'MatchedRoles'; Expression = {
-                ($_.IncludeRoles + $_.ExcludeRoles |
+            @($_.IncludeRoles) + @($_.ExcludeRoles) |
             Where-Object { $_.DisplayName -like $RolePattern } |
-            Select-Object -ExpandProperty DisplayName)
+            Select-Object -ExpandProperty DisplayName
         }
     }
 }

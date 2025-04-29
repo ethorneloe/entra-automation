@@ -10,7 +10,7 @@ English country name (case-insensitive).
 'Include', 'Exclude' or 'Both' (default).
 
 .PARAMETER Config
-The object produced by Get-ConditionalAccessConfiguration
+The object produced by Get-CAPolicyConfiguration
 (must contain .Policies and .NamedLocations).
 Accepts pipeline input.
 
@@ -19,7 +19,7 @@ $cfg | Find-CAPoliciesByCountry -CountryPattern "Brazil"
 .EXAMPLE
 $cfg | Find-CAPoliciesByCountry -CountryPattern "United*" -Scope Exclude
 #>
-function Find-CAPoliciesByCountry {
+function Get-CAPoliciesByCountry {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -41,14 +41,14 @@ function Find-CAPoliciesByCountry {
         $codes = $countries.Key
         if (-not $codes) { throw "Country '$CountryPattern' not recognized." }
 
-        # 2. Named locations that reference the country codes
+        # Named locations that reference the country codes
         $matchedLocations = $Config.NamedLocations |
         Where-Object { $_.Countries.Code | Where-Object { $codes -contains $_ } } |
         Select-Object Id, Countries
 
         if (-not $matchedLocations) { return }   # nothing references this country
 
-        # 3. Policies that reference those named locations
+        # Policies that reference those named locations
         $Config.Policies | Where-Object {
             (($Scope -in 'Include', 'Both') -and
             ($_.IncludeLocations.Id | Where-Object { $matchedLocations.Id -contains $_ })) -or
@@ -68,7 +68,7 @@ function Find-CAPoliciesByCountry {
             }
         },
         @{Name = 'MatchedCountries'; Expression = {
-                # 1. Grab the named-location objects referenced by this policy
+                # Grab the named-location objects referenced by this policy
                 $locs = @($_.IncludeLocations) + @($_.ExcludeLocations)
                 $matchedLocations |
                 Where-Object { $locs.Id -eq $_.Id } | Select-Object -ExpandProperty Countries | Where-Object { $_.Code -in $codes }

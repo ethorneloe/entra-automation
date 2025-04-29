@@ -4,8 +4,7 @@ Return every Conditional Access policy that has one or more
 excluded groups.
 
 .PARAMETER Config
-Object from Get-ConditionalAccessConfiguration.
-Accepts pipeline input.
+The object produced by Get-CAPolicyConfiguration. Accepts pipeline input.
 
 .EXAMPLE
 $cfg | Get-CAPoliciesWithExcludedGroups

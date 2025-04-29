@@ -10,13 +10,13 @@
 
 .EXAMPLE
     # Interactive connection
-    Get-CAPConfiguration
+    Get-CAPolicyConfiguration
 
 .NOTES
     Make sure to run Connect-MgGraph and connect with appropriate scopes.
     This function makes use of the CountryCodeLookup data file in this module("$PSScriptRoot\data\CountryCodeLookup.ps1") to resolve country codes to names.
 #>
-function Get-CAPConfiguration {
+function Get-CAPolicyConfiguration {
     [CmdletBinding()]
     param (
         [switch]$UseExistingGraphSession
@@ -92,7 +92,7 @@ function Get-CAPConfiguration {
                         $u = Get-MgUser -UserId $Id -ErrorAction SilentlyContinue
                         $userCache[$Id] = if ($u) { $u.UserPrincipalName } else { "UnknownUser($Id)" }
                     }
-                    return [PSCustomObject]@{ Id = $Id; DisplayName = $userCache[$Id] }
+                    return [PSCustomObject]@{ Id = $Id; UserPrincipalName = $userCache[$Id] }
                 }
                 'Group' {
                     if (-not $groupCache.ContainsKey($Id)) {
