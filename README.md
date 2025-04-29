@@ -10,6 +10,45 @@ This function extracts all Entra role assignments (assigned, eligible, activated
 
 ## Get-ConditionalAccessConfiguration
 Retrieves condtional access policies in a more human readable form with lookups done on users, groups, applications, roles, locations, and anything else that by default is exported as a GUID.
+```
+$CAPolicyConfig.Policies | Where-Object { $_.IncludeApps -eq 'All' } | Select-Object DisplayName, IncludeApps
+$CAPolicyConfig.Policies | Where-Object { $_.ExcludeApps.DisplayName -like "Azure*" } | Select-Object DisplayName, ExcludeApps | fl
+
+$CAPolicyConfig.Policies | Where-Object { $null -ne $_.ExcludeUsers } | Select-Object DisplayName, ExcludeUsers | fl
+$CAPolicyConfig.Policies | Where-Object { $null -ne $_.ExcludeGroups } | Select-Object DisplayName, ExcludeGroups
+$CAPolicyConfig.Policies | Where-Object { $_.ExcludeUsers.UserPrincipalName -like "dev*" }
+$CAPolicyConfig.Policies | Where-Object { $_.IncludeRoles.DisplayName -like "Global*" }
+$CAPolicyConfig.Policies | Where-Object { $_.IncludeGroups.DisplayName -like "CA*" }
+
+$CAPolicyConfig.Policies | Where-Object { $_.ExcludeLocations.Countries.Name -like "United*" }
+
+$countryPattern = "Al*"
+$CAPolicyConfig.Policies |
+Where-Object {
+    $_.IncludeLocations.Countries.Name -like $countryPattern
+} |
+Select-Object  DisplayName,
+@{ N = 'MatchedCountries'; E = {
+            ( $_.IncludeLocations.Countries |
+        Where-Object { $_.Name -like $countryPattern } |
+        Select-Object -Expand Name -Unique
+            ) -join '; '
+    }
+} |
+Format-List
+
+$IpPattern = "192*"
+$CAPolicyConfig.Policies |
+Where-Object {
+    $_.ExcludeLocations.IpRanges -like $IpPattern
+} |
+Select-Object  DisplayName,
+@{ N = 'MatchedIpRanges'; E = {
+        $_.ExcludeLocations.IpRanges -like $IpPattern
+    }
+} |
+Format-List
+```
 
 ## Get-InactiveEntraAccounts
 Retrieves inactive Entra accounts using a sign-in activity threshold, while excluding accounts created before the threshold and guests in a pending acceptance state.
