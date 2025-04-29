@@ -1,12 +1,10 @@
 <#
 .SYNOPSIS
-Exports Azure AD (Entra ID) application registrations and service principals with secrets and certificates to a CSV file or database.
+Exports Entra application registrations and service principals with secrets and certificates.
 
 .DESCRIPTION
-This function connects to Microsoft Graph to retrieve all Entra ID application registrations and service principals (PreferredSingleSignOnMode eq 'saml').
+This function connects to Microsoft Graph to retrieve all Entra application registrations and service principals (PreferredSingleSignOnMode eq 'saml').
 It can check for expiring or expired secrets and certificates based on a specified threshold of days or include all credentials.
-It exports the details to a CSV file at the specified path or inserts them into a SQL database table, depending on the chosen parameter set.
-The function supports both interactive authentication and app-only authentication using a certificate.
 
 .PARAMETER DaysUntilExpiryThreshold
 Specifies the number of days before expiration when a credential should be considered expiring. Default is 30 days.
@@ -16,30 +14,6 @@ Optional switch parameter to include expired credentials in the output. By defau
 
 .PARAMETER IncludeAllCredentials
 Optional switch parameter to include all credentials regardless of their expiration dates. When set, the date filtering logic is bypassed.
-
-.PARAMETER CsvExportPath
-Specifies the path where the CSV file will be exported when using the 'Csv' parameter set. Default is 'C:\temp'.
-
-.PARAMETER SQLServerInstance
-Specifies the SQL Server instance when using the 'Database' parameter set.
-
-.PARAMETER SQLDatabase
-Specifies the SQL database name when using the 'Database' parameter set.
-
-.PARAMETER SQLTable
-Specifies the SQL table name where the data will be inserted when using the 'Database' parameter set.
-
-.PARAMETER ClearSQLTable
-A switch for clearing the SQL table the data is exported to.
-
-.PARAMETER CertificateThumbprint
-(Optional) The thumbprint of the certificate to use for app-only authentication when connecting to Microsoft Graph.
-
-.PARAMETER ClientId
-(Optional) The client ID (application ID) to use for authentication when connecting to Microsoft Graph.
-
-.PARAMETER TenantId
-(Optional) The tenant ID to use for authentication when connecting to Microsoft Graph.
 
 .NOTES
 - This script requires the Microsoft Graph PowerShell SDK to be installed.
@@ -52,76 +26,45 @@ Export-ExpiringEntraIdAppCreds
 Runs the function with default settings, exporting expiring credentials to 'C:\temp'.
 
 .EXAMPLE
-Export-ExpiringEntraIdAppCreds -IncludeExpired
+Export-ExpiringEntraAppCreds-IncludeExpired
 
 Includes expired credentials in the output.
 
 .EXAMPLE
-Export-ExpiringEntraIdAppCreds -IncludeAllCredentials
+Export-ExpiringEntraAppCreds-IncludeAllCredentials
 
 Includes all credentials regardless of their expiration dates.
 
 .EXAMPLE
-Export-ExpiringEntraIdAppCreds -DaysUntilExpiryThreshold 60 -CsvExportPath 'C:\Exports'
+Export-ExpiringEntraAppCreds-DaysUntilExpiryThreshold 60
 
-Exports credentials that are expiring within the next 60 days to the specified CSV export path.
-
-.EXAMPLE
-$Params = @{
-    DaysUntilExpiryThreshold = 30
-    IncludeExpired           = $true
-    SQLServerInstance        = 'YourSQLServerInstance'
-    SQLDatabase              = 'YourDatabaseName'
-    SQLTable                 = 'YourTableName'
-}
-Export-ExpiringEntraIdAppCreds @Params -ParameterSetName 'Database'
-
-Exports expiring credentials to a SQL database table using the 'Database' parameter set.
-
-.EXAMPLE
-Export-ExpiringEntraIdAppCreds -CertificateThumbprint 'ABCDEF1234567890' -ClientId 'your-client-id' -TenantId 'your-tenant-id' -IncludeAllCredentials
-
-Runs the function using app-only authentication with a certificate and includes all credentials.
+Exports credentials that are expiring within the next 60 days.
 
 #>
-function Export-ExpiringEntraIdAppCreds {
-    [CmdletBinding(DefaultParameterSetName = 'Csv')]
+function Export-ExpiringEntraAppCreds {
+    [CmdletBinding()]
     param (
         [int]$DaysUntilExpiryThreshold = 30, # Default is 30 days
 
         [switch]$IncludeExpired = $false,
 
-        [switch]$IncludeAllCredentials = $false,
-
-        [string]$CertificateThumbprint,
-
-        [string]$ClientId,
-
-        [string]$TenantId
+        [switch]$IncludeAllCredentials = $false
     )
 
-    Import-Module Microsoft.Graph.Authentication -Force -ErrorAction Stop
+    # -------------------------------------------------------
+    # 1. Import required modules
+    # -------------------------------------------------------
+    import-module Microsoft.Graph.Authentication -Force -ErrorAction Stop
     Import-Module Microsoft.Graph.Applications -Force -ErrorAction Stop
 
-    # Remove existing session
-    Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
-
-    Try {
-        if ((-not $CertificateThumbprint) -and (-not $ClientId) -and (-not $TenantId)) {
-            Connect-MgGraph -NoWelcome
-        }
-        else {
-            Connect-MgGraph -CertificateThumbprint $CertificateThumbprint -ClientId $ClientId -TenantId $TenantId -NoWelcome
-        }
-    }
-    catch {
-        throw ("Unable to connect to Graph API. Error: " + $_.Exception.Message)
-    }
-
-    # Retrieve all applications
+    # -------------------------------------------------------
+    # 2. Retrieve all applications
+    # -------------------------------------------------------
     $Applications = Get-MgApplication -All -Select "DisplayName,AppId,Id,PasswordCredentials,KeyCredentials" -ExpandProperty "Owners"
 
-    # Create a thread-safe concurrent bag to store results
+    # -------------------------------------------------------
+    # 3. Process each application in parallel and retrieve credential details
+    # -------------------------------------------------------
     $results = [System.Collections.Concurrent.ConcurrentBag[pscustomobject]]::new()
 
     $Applications | ForEach-Object -Parallel {
@@ -216,9 +159,15 @@ function Export-ExpiringEntraIdAppCreds {
         }
     }
 
-    # Check SAML Signing Certificates on SPs with PreferredSingleSignOnMode set to 'saml'
+
+    # -------------------------------------------------------
+    # 4. Retrieve all Service Principals with SAML signing certificates
+    # -------------------------------------------------------
     $ServicePrincipals = Get-MgServicePrincipal -Filter "PreferredSingleSignOnMode eq 'saml'" -Select "DisplayName,AppId,Id,PasswordCredentials" -ExpandProperty "Owners"
 
+    # -------------------------------------------------------
+    # 5. Process each application in parallel and retrieve credential details
+    # -------------------------------------------------------
     $ServicePrincipals | ForEach-Object -Parallel {
 
         $_results = $using:results
@@ -274,5 +223,8 @@ function Export-ExpiringEntraIdAppCreds {
             }
         }
     }
+    # -------------------------------------------------------
+    # 6. Return combined results
+    # -------------------------------------------------------
     return $results.ToArray()
 }
