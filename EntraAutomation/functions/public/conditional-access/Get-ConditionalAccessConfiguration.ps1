@@ -62,7 +62,7 @@ function Get-ConditionalAccessConfiguration {
         }
 
         #---------------------------------------------------------------------
-        # 5. Resolver function for IDs and tokens
+        # 5. Resolver function to convert IDs to Names
         #---------------------------------------------------------------------
         function Resolve-Entity {
             param(
