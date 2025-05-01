@@ -1,7 +1,7 @@
 # Overview
 This repo provides a PowerShell module named `EntraAutomation` to help streamline various Microsoft Entra tasks.
 
-Each function allows use of an existing Graph API session (Connect-MgGraph) through the `-UseExistingGraphSession` switch, otherwise the default is to disconnect the existing session(if present) and connect with a fresh session. The newly created session is cleared at the end of each function.
+Each function allows use of an existing Graph API session (Connect-MgGraph) through the `UseExistingGraphSession` switch, otherwise the default is to disconnect the existing session(if present) and connect with a fresh session. The newly created session is cleared at the end of each function.
 
 Refer to the functions and examples below for more details.  More documentation can be found within each function.
 
