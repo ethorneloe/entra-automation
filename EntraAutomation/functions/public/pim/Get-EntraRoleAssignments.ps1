@@ -12,7 +12,7 @@ Output includes role name, assignment type, built-in status, member type, princi
 If specified, the function will use the existing Microsoft Graph session instead of establishing a new one.
 
 .EXAMPLE
-Export-EntraRoleAssignments -UseExistingGraphSession
+Get-EntraRoleAssignments -UseExistingGraphSession
 
 .NOTES
 - This function requires the Microsoft Graph PowerShell module.
@@ -23,7 +23,7 @@ Export-EntraRoleAssignments -UseExistingGraphSession
 - When a role assignment is for a group, the AssignmentId for each expanded group member is the ID of the group assignment.
 
 #>
-function Export-EntraRoleAssignments {
+function Get-EntraRoleAssignments {
     [CmdletBinding()]
     param (
         [switch]$UseExistingGraphSession
@@ -234,7 +234,7 @@ function Export-EntraRoleAssignments {
         return $results.ToArray()
     }
     catch {
-        Write-Error -Message "Export-EntraRoleAssignments failed: $_"
+        Write-Error -Message "Get-EntraRoleAssignments failed: $_"
     }
     finally {
         if (-not $UseExistingGraphSession) {

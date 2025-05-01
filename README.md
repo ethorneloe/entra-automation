@@ -22,11 +22,11 @@ Add-EntraEligibleRoleAssignmentsFromCsv @roleParams
 
 ```
 
-## Export-EntraRoleAssignments
+## Get-EntraRoleAssignments
 This function extracts all Entra role assignments (assigned, eligible, activated eligible) and also expands the members in role assignable groups as separate assignment objects for completeness.
 ```
 # Extract all role assignments
-$RoleAssignments = Export-EntraRoleAssignments
+$RoleAssignments = Get-EntraRoleAssignments
 
 # Get assignments for roles that contain "Global"
 $RoleAssignments | Where-Object{$_.RoleName -like "Global*"} | format-table PrincipalUPN, RoleName, AssignmentType
