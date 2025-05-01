@@ -62,7 +62,7 @@ function Add-EntraEligibleRoleAssignmentsFromCsv {
     try {
 
         # -------------------------------------------------------
-        # 1. Import the required modules
+        # 1. Import required modules
         # -------------------------------------------------------
         Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
         Import-Module Microsoft.Graph.Identity.Governance -ErrorAction Stop

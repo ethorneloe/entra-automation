@@ -26,6 +26,7 @@ function Get-ConditionalAccessConfiguration {
         #---------------------------------------------------------------------
         # 1. Import required modules
         #---------------------------------------------------------------------
+        Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
         Import-Module Microsoft.Graph.Identity.SignIns -ErrorAction Stop
         Import-Module Microsoft.Graph.Users -ErrorAction Stop
         Import-Module Microsoft.Graph.Groups -ErrorAction Stop
