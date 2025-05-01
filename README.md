@@ -102,7 +102,7 @@ $CAConfig.Policies | Where-Object { $_.IncludeRoles.DisplayName -like "Global*" 
 # Get all policies with excluded countries that start with `United`
 $CAConfig.Policies | Where-Object { $_.ExcludeLocations.Countries.Name -like "United*" }
 
-# View named locations with country names and ip ranges
+# View named locations with country names and IP ranges
 $CAConfig.NamedLocations | fl
 
 # Get all policies that include countries with a pattern, and display the policy name with matched countries
