@@ -100,11 +100,14 @@ $CAConfig.Policies | Where-Object { $_.ExcludeUsers.UserPrincipalName -like "dev
 $CAConfig.Policies | Where-Object { $_.IncludeRoles.DisplayName -like "Global*" }
 
 # Get all policies with excluded countries that start with `United`
-$CAPolicyConfig.Policies | Where-Object { $_.ExcludeLocations.Countries.Name -like "United*" }
+$CAConfig.Policies | Where-Object { $_.ExcludeLocations.Countries.Name -like "United*" }
+
+# View named locations with country names and ip ranges
+$CAConfig.NamedLocations | fl
 
 # Get all policies that include countries with a pattern, and display the policy name with matched countries
 $countryPattern = "Al*"
-$CAPolicyConfig.Policies |
+$CAConfig.Policies |
 Where-Object {
     $_.IncludeLocations.Countries.Name -like $countryPattern
 } |
@@ -115,12 +118,11 @@ Select-Object  DisplayName,
         Select-Object -Expand Name -Unique
             ) -join '; '
     }
-} |
-Format-List
+} | Format-List
 
 # Get all policies that exclude an IP range pattern and display the policy name with the matched IP ranges
 $IpPattern = "192*"
-$CAPolicyConfig.Policies |
+$CAConfig.Policies |
 Where-Object {
     $_.ExcludeLocations.IpRanges -like $IpPattern
 } |
@@ -128,8 +130,7 @@ Select-Object  DisplayName,
 @{ N = 'MatchedIpRanges'; E = {
         $_.ExcludeLocations.IpRanges -like $IpPattern
     }
-} |
-Format-List
+} | Format-List
 ```
 
 ## Get-InactiveEntraAccounts
