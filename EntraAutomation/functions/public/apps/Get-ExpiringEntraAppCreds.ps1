@@ -26,30 +26,46 @@ Export-ExpiringEntraIdAppCreds
 Runs the function with default settings, exporting expiring credentials to 'C:\temp'.
 
 .EXAMPLE
-Export-ExpiringEntraAppCreds-IncludeExpired
+Get-ExpiringEntraAppCreds-IncludeExpired
 
 Includes expired credentials in the output.
 
 .EXAMPLE
-Export-ExpiringEntraAppCreds-IncludeAllCredentials
+Get-ExpiringEntraAppCreds-IncludeAllCredentials
 
 Includes all credentials regardless of their expiration dates.
 
 .EXAMPLE
-Export-ExpiringEntraAppCreds-DaysUntilExpiryThreshold 60
+Get-ExpiringEntraAppCreds-DaysUntilExpiryThreshold 60
 
 Exports credentials that are expiring within the next 60 days.
 
 #>
-function Export-ExpiringEntraAppCreds {
+function Get-ExpiringEntraAppCreds {
     [CmdletBinding()]
     param (
+        [Parameter(ParameterSetName = 'Default')]
+        [Parameter(ParameterSetName = 'Certificate')]
         [int]$DaysUntilExpiryThreshold = 30, # Default is 30 days
 
+        [Parameter(ParameterSetName = 'Default')]
+        [Parameter(ParameterSetName = 'Certificate')]
         [switch]$IncludeExpired = $false,
 
+        [Parameter(ParameterSetName = 'Default')]
+        [Parameter(ParameterSetName = 'Certificate')]
         [switch]$IncludeAllCredentials = $false,
 
+        [Parameter(ParameterSetName = 'Certificate', Mandatory = $true)]
+        [string]$ClientId,
+
+        [Parameter(ParameterSetName = 'Certificate', Mandatory = $true)]
+        [string]$TenantId,
+
+        [Parameter(ParameterSetName = 'Certificate', Mandatory = $true)]
+        [string]$CertificateThumbprint,
+
+        [Parameter(ParameterSetName = 'Default')]
         [switch]$UseExistingGraphSession
     )
     Try {
@@ -65,7 +81,15 @@ function Export-ExpiringEntraAppCreds {
         #---------------------------------------------------------------------
         if (-not $UseExistingGraphSession) {
             Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
-            Connect-MgGraph -Scopes 'Directory.Read.All'  -NoWelcome -ErrorAction Stop
+            switch ($PSCmdlet.ParameterSetName) {
+                'Certificate' {
+                    Connect-MgGraph -ClientId $ClientId -CertificateThumbprint $CertificateThumbprint -TenantId $TenantId -NoWelcome
+                }
+                'Default' {
+                    Connect-MgGraph -Scopes 'User.Read.All', 'AuditLog.Read.All' -NoWelcome
+
+                }
+            }
         }
 
         # -------------------------------------------------------
