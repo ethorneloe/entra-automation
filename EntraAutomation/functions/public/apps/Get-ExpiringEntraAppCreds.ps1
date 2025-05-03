@@ -26,17 +26,17 @@ Export-ExpiringEntraIdAppCreds
 Runs the function with default settings, exporting expiring credentials to 'C:\temp'.
 
 .EXAMPLE
-Get-ExpiringEntraAppCreds-IncludeExpired
+Get-ExpiringEntraAppCreds -IncludeExpired
 
 Includes expired credentials in the output.
 
 .EXAMPLE
-Get-ExpiringEntraAppCreds-IncludeAllCredentials
+Get-ExpiringEntraAppCreds -IncludeAllCredentials
 
 Includes all credentials regardless of their expiration dates.
 
 .EXAMPLE
-Get-ExpiringEntraAppCreds-DaysUntilExpiryThreshold 60
+Get-ExpiringEntraAppCreds -DaysUntilExpiryThreshold 60
 
 Exports credentials that are expiring within the next 60 days.
 
