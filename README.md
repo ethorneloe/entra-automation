@@ -6,73 +6,26 @@ Each function allows use of an existing Graph API session (Connect-MgGraph) thro
 Refer to the functions and examples below for more details.  More documentation can be found within each function.
 
 # Functions
-## Add-EntraEligibleRoleAssignmentsFromCsv
-Simplifies the migration of permanent active role assignments to eligible time-bound assignments using a csv file of UPNs and Entra role names.
+## Apps
+### Get-ExpiringEntraAppCreds
+Retrieves all Entra application registrations and service principals, and identifies credentials approaching or past expiration.
 ```
-$roleParams = @{
-    CsvPath                         = 'C:\assignments.csv'
-    StartDate                       = Get-Date '2024-01-01Z'
-    EndDate                         = Get-Date '2025-01-01Z'
-    Justification                   = 'New eligible assignments to replace existing perm assignments.'
-    DirectoryScopeId                = '/'
-    RemoveExistingActiveAssignments = $true
-}
+# Retrieve expiring credentials (default 30-day threshold)
+$AppCreds = Get-ExpiringEntraAppCreds
 
-Add-EntraEligibleRoleAssignmentsFromCsv @roleParams
+# Change threshold to 60 days
+$AppCreds = Get-ExpiringEntraAppCreds -DaysUntilExpiryThreshold 60
 
-```
+# Include already expired credentials
+$AppCreds = Get-ExpiringEntraAppCreds -IncludeExpired
 
-## Get-EntraRoleAssignments
-This function extracts all Entra role assignments (assigned, eligible, activated eligible) and also expands the members in role assignable groups as separate assignment objects for completeness.
-```
-# Extract all role assignments
-$RoleAssignments = Get-EntraRoleAssignments
+# Bypass all date-based filters and return every secret & cert
+$AppCreds = Get-ExpiringEntraAppCreds -IncludeAllCredentials
 
-# Get assignments for roles that contain "Global"
-$RoleAssignments | Where-Object{$_.RoleName -like "Global*"} | format-table PrincipalUPN, RoleName, AssignmentType
-
-# Get "Assigned" (permanent) role assignments
-$RoleAssignments | Where-Object{$_.AssignmentType -eq "Assigned"}
-
-# Get assignments for service principals
-$RoleAssignments | Where-Object{$_.ObjectType -eq "servicePrincipal"}
-
-# Get all role-assignable group assignments
-$RoleAssignments | Where-Object{$_.ObjectType -eq "group"} | Select-Object PrincipalDisplayName, RoleName
-
-# Get all users that have roles through a role-assignable group
-$RoleAssignments | Where-Object{$_.ObjectType -eq "user" -and $null -ne $_.SourceGroupPrincipalID} |
-  Select-Object PrincipalDisplayName, RoleName, SourceGroupDisplayName, SourceGroupPrincipalId
-
-# Get all assignments for users that are synced from on-prem
-$RoleAssignments | Where-Object{$_.OnPremisesSyncEnabled -eq $true}
-
-<# Sample output object format
-
-AssignmentId           : 7e6bc5b0-4c6a-4f41-b938-c1c2d3e4f5a6
-RoleName               : Privileged Role Administrator
-RoleDefinitionId       : ba92b091-5132-4d04-8d7b-8767a116988b
-AssignmentType         : Eligible
-IsBuiltIn              : True
-MemberType             : User
-SourceGroupDisplayName :
-SourceGroupPrincipalId :
-PrincipalId            : a1b2c3d4-5678-4e9f-a0b1-2c3d4e5f6789
-PrincipalDisplayName   : Alex Wilson
-PrincipalUPN           : alex.wilson@domain.com
-ObjectType             : User
-OnPremisesSyncEnabled  : True
-UserType               : Member
-DirectoryScopeId       : /
-DirectoryScopeType     : Directory
-DirectoryScopeName     : MSFT
-StartDateTime          : 01/05/2025 12:00:00 AM
-EndDateTime            : 01/05/2026 12:00:00 AM
-
-#>
 ```
 
-## Get-ConditionalAccessConfiguration
+## Conditional Access
+### Get-ConditionalAccessConfiguration
 Retrieves conditional access policies and named locations in a more human readable format with lookups done on users, groups, applications, roles, locations, and anything else that by default is exported as a GUID.
 ```
 # Get conditional access configuration
@@ -132,8 +85,75 @@ Select-Object  DisplayName,
     }
 } | Format-List
 ```
+## PIM
+### Add-EntraEligibleRoleAssignmentsFromCsv
+Simplifies the migration of permanent active role assignments to eligible time-bound assignments using a csv file of UPNs and Entra role names.
+```
+$roleParams = @{
+    CsvPath                         = 'C:\assignments.csv'
+    StartDate                       = Get-Date '2024-01-01Z'
+    EndDate                         = Get-Date '2025-01-01Z'
+    Justification                   = 'New eligible assignments to replace existing perm assignments.'
+    DirectoryScopeId                = '/'
+    RemoveExistingActiveAssignments = $true
+}
 
-## Get-InactiveEntraAccounts
+Add-EntraEligibleRoleAssignmentsFromCsv @roleParams
+
+```
+
+### Get-EntraRoleAssignments
+This function extracts all Entra role assignments (assigned, eligible, activated eligible) and also expands the members in role assignable groups as separate assignment objects for completeness.
+```
+# Extract all role assignments
+$RoleAssignments = Get-EntraRoleAssignments
+
+# Get assignments for roles that contain "Global"
+$RoleAssignments | Where-Object{$_.RoleName -like "Global*"} | format-table PrincipalUPN, RoleName, AssignmentType
+
+# Get "Assigned" (permanent) role assignments
+$RoleAssignments | Where-Object{$_.AssignmentType -eq "Assigned"}
+
+# Get assignments for service principals
+$RoleAssignments | Where-Object{$_.ObjectType -eq "servicePrincipal"}
+
+# Get all role-assignable group assignments
+$RoleAssignments | Where-Object{$_.ObjectType -eq "group"} | Select-Object PrincipalDisplayName, RoleName
+
+# Get all users that have roles through a role-assignable group
+$RoleAssignments | Where-Object{$_.ObjectType -eq "user" -and $null -ne $_.SourceGroupPrincipalID} |
+  Select-Object PrincipalDisplayName, RoleName, SourceGroupDisplayName, SourceGroupPrincipalId
+
+# Get all assignments for users that are synced from on-prem
+$RoleAssignments | Where-Object{$_.OnPremisesSyncEnabled -eq $true}
+
+<# Sample output object format
+
+AssignmentId           : 7e6bc5b0-4c6a-4f41-b938-c1c2d3e4f5a6
+RoleName               : Privileged Role Administrator
+RoleDefinitionId       : ba92b091-5132-4d04-8d7b-8767a116988b
+AssignmentType         : Eligible
+IsBuiltIn              : True
+MemberType             : User
+SourceGroupDisplayName :
+SourceGroupPrincipalId :
+PrincipalId            : a1b2c3d4-5678-4e9f-a0b1-2c3d4e5f6789
+PrincipalDisplayName   : Alex Wilson
+PrincipalUPN           : alex.wilson@domain.com
+ObjectType             : User
+OnPremisesSyncEnabled  : True
+UserType               : Member
+DirectoryScopeId       : /
+DirectoryScopeType     : Directory
+DirectoryScopeName     : MSFT
+StartDateTime          : 01/05/2025 12:00:00 AM
+EndDateTime            : 01/05/2026 12:00:00 AM
+
+#>
+```
+
+## Users
+### Get-InactiveEntraAccounts
 Retrieves inactive Entra accounts using a sign-in activity threshold, while excluding accounts created before the threshold and skipping guests in a pending acceptance state.
 ```
 # Get inactive guests that have not signed in during the past 90 days
@@ -143,7 +163,7 @@ $InactiveGuests = Get-InactiveEntraAccounts -DaysThreshold 90 -UserType 'Guest'
 Get-InactiveEntraAccounts -DaysThreshold 365 -ClientId "<app-client-id>" -TenantId "<tenant-id>" -CertificateThumbprint "<thumbprint>"
 ```
 
-## Remove-InactiveGuestsPendingAcceptance
+### Remove-InactiveGuestsPendingAcceptance
 Automatically cleans up guest accounts with a `PendingAcceptance` state within the specified threshold.
 ```
 # Remove guests that have not accepted their invite in the past 60 days

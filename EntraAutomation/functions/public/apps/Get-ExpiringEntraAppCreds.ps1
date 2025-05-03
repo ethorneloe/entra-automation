@@ -1,45 +1,71 @@
 <#
 .SYNOPSIS
-Exports Entra application registrations and service principals with secrets and certificates.
+    Retrieves all Entra application registrations and service principals, and identifies credentials approaching or past expiration.
 
 .DESCRIPTION
-This function connects to Microsoft Graph to retrieve all Entra application registrations and service principals (PreferredSingleSignOnMode eq 'saml').
-It can check for expiring or expired secrets and certificates based on a specified threshold of days or include all credentials.
+    Connects to Microsoft Graph and fetches:
+      - All application registrations
+      - All service principals (filtering on PreferredSingleSignOnMode = 'saml')
+
+    For each object, the function examines password secrets and certificate credentials, and:
+      - Flags those expiring within a user-defined threshold
+      - Optionally includes already expired credentials
+      - Optionally bypasses expiry filtering to return every credential
 
 .PARAMETER DaysUntilExpiryThreshold
-Specifies the number of days before expiration when a credential should be considered expiring. Default is 30 days.
+    The number of days from today within which a credential is considered “expiring.”
+    Defaults to 30 days.
 
 .PARAMETER IncludeExpired
-Optional switch parameter to include expired credentials in the output. By default, expired credentials are excluded.
+    When specified, expired credentials (EndDateTime &lt; today) are included in the results.
+    By default, expired entries are excluded.
 
 .PARAMETER IncludeAllCredentials
-Optional switch parameter to include all credentials regardless of their expiration dates. When set, the date filtering logic is bypassed.
+    When specified, returns every secret and certificate, regardless of expiration date,
+    effectively disabling any filtering based on DaysUntilExpiryThreshold or IncludeExpired.
+
+.PARAMETER UseExistingGraphSession
+    When specified, reuses an existing Microsoft Graph connection instead of initiating a new interactive or certificate-based login.
+
+.PARAMETER ClientId
+    The application (client) ID used for certificate-based (app-only) authentication.
+    Required when CertificateThumbprint and TenantId are provided.
+
+.PARAMETER TenantId
+    The Azure AD tenant ID for certificate-based authentication.
+    Required when CertificateThumbprint and ClientId are provided.
+
+.PARAMETER CertificateThumbprint
+    Thumbprint of the local certificate used to authenticate as an app.
+    Required when ClientId and TenantId are provided.
 
 .NOTES
-- This script requires the Microsoft Graph PowerShell SDK to be installed.
-- Appropriate permissions are required to read Azure AD applications and service principals.
-- By default, the script connects interactively to Microsoft Graph unless `CertificateThumbprint`, `ClientId`, and `TenantId` are provided for app-only authentication.
+    - Requires the Microsoft.Graph PowerShell SDK modules:
+        Microsoft.Graph.Authentication
+        Microsoft.Graph.Applications
+        Microsoft.Graph.ServicePrincipals
+    - The calling identity must have Application.Read.All and Directory.Read.All (or equivalent) permissions.
+    - By default, connects interactively. Supply ClientId, TenantId, and CertificateThumbprint for app-only auth.
 
 .EXAMPLE
-Export-ExpiringEntraIdAppCreds
+    Get-ExpiringEntraAppCreds
 
-Runs the function with default settings, exporting expiring credentials to 'C:\temp'.
-
-.EXAMPLE
-Get-ExpiringEntraAppCreds -IncludeExpired
-
-Includes expired credentials in the output.
+    Runs with default settings (30-day threshold), omitting already expired credentials.
 
 .EXAMPLE
-Get-ExpiringEntraAppCreds -IncludeAllCredentials
+    Get-ExpiringEntraAppCreds -IncludeExpired
 
-Includes all credentials regardless of their expiration dates.
+    Includes both expiring and already expired credentials in the output.
 
 .EXAMPLE
-Get-ExpiringEntraAppCreds -DaysUntilExpiryThreshold 60
+    Get-ExpiringEntraAppCreds -IncludeAllCredentials
 
-Exports credentials that are expiring within the next 60 days.
+    Returns every secret and certificate, ignoring any expiry filters.
 
+.EXAMPLE
+    Get-ExpiringEntraAppCreds -DaysUntilExpiryThreshold 60
+
+    Flags credentials expiring within the next 60 days.
 #>
 function Get-ExpiringEntraAppCreds {
     [CmdletBinding()]
