@@ -141,7 +141,7 @@ function Enable-EntraEligibleRoles {
         }
 
         try {
-            New-MgRoleManagementDirectoryRoleAssignmentScheduleRequest -BodyParameter $body -ErrorAction Stop
+            New-MgRoleManagementDirectoryRoleAssignmentScheduleRequest -BodyParameter $body -ErrorAction Stop | Out-Null
             Write-Output "✔ Activated: $($role.RoleDefinition.DisplayName)"
         }
         catch {
