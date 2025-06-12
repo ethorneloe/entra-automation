@@ -61,7 +61,7 @@ function Enable-EntraEligibleRoles {
     } until (
         [int]::TryParse($raw.Trim(), [ref]$hours) -and
         $hours -ge 1 -and $hours -le 9 -or
-        (Write-Error "Please enter a number from 1-9.")
+        (Write-Warning "Please enter a number from 1-9.")
     )
 
     do {
