@@ -28,6 +28,9 @@ $AppCreds = Get-ExpiringEntraAppCreds -IncludeAllCredentials
 ### Get-ConditionalAccessConfiguration
 Retrieves conditional access policies and named locations in a more human readable format with lookups done on users, groups, applications, roles, locations, and anything else that by default is exported as a GUID.
 ```
+# Import the module to ensure the country codes are loaded
+Import-Module EntraAutomation
+
 # Get conditional access configuration
 $CAConfig = Get-ConditionalAccessConfiguration
 
