@@ -80,7 +80,8 @@ function Get-ConditionalAccessConfiguration {
                 'None' { return 'None' }
                 'GuestsOrExternalUsers' { return 'GuestsOrExternalUsers' }
                 'AllTrusted' { return 'AllTrusted' }
-                'Office365' { 'Office365' }
+                'Office365' { return 'Office365' }
+                'MicrosoftAdminPortals' { return 'MicrosoftAdminPortals' }
             }
 
             switch ($Type) {
